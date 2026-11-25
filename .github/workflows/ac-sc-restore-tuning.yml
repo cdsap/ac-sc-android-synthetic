@@ -157,3 +157,9 @@ jobs:
       # Offline: after a complete restore every dependency is local, so a failure
       # here means the restore missed entries.
       - run: ./gradlew assembleDebug --offline
+
+      # Offline builds do not publish Build Scans; publish it now so the restore metrics
+      # (entries, bytes, missing artifacts) and transform executions land in Develocity.
+      - name: Publish Build Scan
+        if: always()
+        run: ./gradlew buildScanPublishPrevious
