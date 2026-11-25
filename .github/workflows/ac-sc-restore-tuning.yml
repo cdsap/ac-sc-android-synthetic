@@ -35,6 +35,17 @@ jobs:
   seed:
     runs-on: ubuntu-latest
     steps:
+      # Public repo, public logs: the CLI prints the Develocity and Edge hosts, which GitHub
+      # does not mask on its own (it masks the exact secret string only).
+      - name: Mask Develocity hosts
+        env:
+          DEVELOCITY_URL: ${{ secrets.DEVELOCITY_URL }}
+          DEVELOCITY_EDGE_HOST: ${{ secrets.DEVELOCITY_EDGE_HOST }}
+        run: |
+          host="${DEVELOCITY_URL#*://}"; host="${host%%/*}"
+          if [ -n "$host" ]; then echo "::add-mask::$host"; fi
+          if [ -n "$DEVELOCITY_EDGE_HOST" ]; then echo "::add-mask::$DEVELOCITY_EDGE_HOST"; fi
+
       - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v6
@@ -65,6 +76,8 @@ jobs:
           develocity-url: ${{ secrets.DEVELOCITY_URL }}
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
           image-names: ${{ env.IMAGE_NAME }}
+          additional-cli-args: |
+            --autodetect=GRADLE
 
       - run: ./gradlew assembleDebug
 
@@ -78,6 +91,17 @@ jobs:
         per-entry-timeout: [PT60S, PT5M]
     name: restore (concurrency ${{ matrix.concurrency }}, per-entry ${{ matrix.per-entry-timeout }})
     steps:
+      # Public repo, public logs: the CLI prints the Develocity and Edge hosts, which GitHub
+      # does not mask on its own (it masks the exact secret string only).
+      - name: Mask Develocity hosts
+        env:
+          DEVELOCITY_URL: ${{ secrets.DEVELOCITY_URL }}
+          DEVELOCITY_EDGE_HOST: ${{ secrets.DEVELOCITY_EDGE_HOST }}
+        run: |
+          host="${DEVELOCITY_URL#*://}"; host="${host%%/*}"
+          if [ -n "$host" ]; then echo "::add-mask::$host"; fi
+          if [ -n "$DEVELOCITY_EDGE_HOST" ]; then echo "::add-mask::$DEVELOCITY_EDGE_HOST"; fi
+
       - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v6
@@ -110,6 +134,7 @@ jobs:
           image-names: ${{ env.IMAGE_NAME }}
           cache-read-only: true
           additional-cli-args: |
+            --autodetect=GRADLE
             --operation-concurrency=${{ matrix.concurrency }}
             --operation-timeout=${{ matrix.per-entry-timeout }}
             --timeout=${{ inputs.command-timeout }}

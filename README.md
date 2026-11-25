@@ -19,7 +19,11 @@ Repository secrets:
 | secret | value |
 |---|---|
 | `DEVELOCITY_URL` | Develocity server URL, e.g. `https://develocity.example.com` |
-| `DEVELOCITY_ACCESS_KEY` | access key in `host=key` form, e.g. `develocity.example.com=<key>` (the host must match `DEVELOCITY_URL`) |
+| `DEVELOCITY_ACCESS_KEY` | access key in `host=key` form, e.g. `develocity.example.com=<key>` (the host must match `DEVELOCITY_URL`). It needs the **Read and write Build Cache data** permission, or the Edge rejects every store with `Unauthorized access to remote cache`. |
+| `DEVELOCITY_EDGE_HOST` | optional: the Edge hostname, only so it is masked in the public logs |
+
+Each job first masks the Develocity host (taken from `DEVELOCITY_URL`) and the Edge host, because the CLI prints both
+and GitHub only masks exact secret values.
 
 Until `DEVELOCITY_URL` is set, `build.yml` skips the AC/SC step and builds without caching. `ac-sc-restore-tuning.yml`
 requires both. Pull requests from forks get no secrets, so they also build without caching.
@@ -34,6 +38,9 @@ both see it.
 |---|---|---|
 | `build.yml` | push, PR, manual | `assembleDebug testDebugUnitTest`, with the AC/SC action restoring before the build and storing in its post step. Uploads the CLI logs and JFRs (`--reporting-directory`). |
 | `ac-sc-restore-tuning.yml` | manual | A seed job stores a fixed cache image from a full build. A 2×2 matrix of fresh runners then restores it read-only with `--operation-concurrency` 4/16 × `--operation-timeout` PT60S/PT5M, and builds `--offline`. Input: `command-timeout` (CLI `--timeout`, default PT2M). |
+
+The CLI runs with `--autodetect=GRADLE`, so it caches the Gradle User Home only, not the runner's Docker images, npm or pip
+caches.
 
 Both workflows apply `setup-gradle` before the AC/SC action, with `cache-provider: external`, so the CLI uses the same
 Gradle User Home and `setup-gradle` does not cache it a second time. `setup-gradle` also gets the access key, for
