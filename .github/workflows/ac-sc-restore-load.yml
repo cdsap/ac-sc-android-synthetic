@@ -1,0 +1,110 @@
+name: AC/SC restore load
+
+# Many runners restore the same cache image at the same time, to see how restore
+# time and deadline hits behave when the Edge serves concurrent clients.
+#
+# Restores the image that build.yml stores on main (no seed job), read-only.
+# Each job then runs `./gradlew help` (online) so a Build Scan is published with
+# the restore metrics: restored/missing artifacts, download size, wall-clock time.
+#
+# Required configuration:
+#   secrets.DEVELOCITY_URL              e.g. https://develocity.example.com
+#   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
+# Optional:
+#   secrets.AC_CLI_ENV                  extra NAME=value lines for the Artifact Cache CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      parallel-jobs:
+        description: "Number of concurrent restore jobs"
+        default: "12"
+      operation-concurrency:
+        description: "CLI --operation-concurrency"
+        default: "4"
+      command-timeout:
+        description: "CLI --timeout (the pipeline deadline)"
+        default: "PT2M"
+      image-name:
+        description: "Cache image to restore"
+        default: "Build~build~refs/heads/main~Linux~X64"
+
+permissions:
+  contents: read
+
+env:
+  DEVELOCITY_URL: ${{ secrets.DEVELOCITY_URL }}
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      jobs: ${{ steps.range.outputs.jobs }}
+    steps:
+      - id: range
+        run: echo "jobs=[$(seq -s, 1 "${{ inputs.parallel-jobs }}")]" >> "$GITHUB_OUTPUT"
+
+  restore:
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 256
+      matrix:
+        job: ${{ fromJSON(needs.matrix.outputs.jobs) }}
+    name: restore ${{ matrix.job }}
+    steps:
+      # Public repo, public logs: the CLI prints the Develocity and Edge hosts, which GitHub
+      # does not mask on its own (it masks the exact secret string only).
+      - name: Mask Develocity hosts
+        env:
+          DEVELOCITY_URL: ${{ secrets.DEVELOCITY_URL }}
+          DEVELOCITY_EDGE_HOST: ${{ secrets.DEVELOCITY_EDGE_HOST }}
+        run: |
+          host="${DEVELOCITY_URL#*://}"; host="${host%%/*}"
+          if [ -n "$host" ]; then echo "::add-mask::$host"; fi
+          if [ -n "$DEVELOCITY_EDGE_HOST" ]; then echo "::add-mask::$DEVELOCITY_EDGE_HOST"; fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          # 23: the generated convention plugins use a Java 23 toolchain. 21 (last) is the default JDK.
+          java-version: |
+            23
+            21
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: external
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line, from the
+      # repository secret AC_CLI_ENV. Each name and value is masked before it is exported.
+      - name: Extra Artifact Cache CLI environment
+        env:
+          AC_CLI_ENV: ${{ secrets.AC_CLI_ENV }}
+        run: |
+          [ -n "$AC_CLI_ENV" ] || exit 0
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            echo "::add-mask::${line%%=*}"
+            echo "::add-mask::${line#*=}"
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$AC_CLI_ENV"
+
+      - name: Develocity Artifact + Setup Cache (restore only)
+        uses: gradle/develocity-artifact-cache-github-action@v1
+        with:
+          develocity-url: ${{ secrets.DEVELOCITY_URL }}
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+          image-names: ${{ inputs.image-name }}
+          cache-read-only: true
+          additional-cli-args: |
+            --autodetect=GRADLE
+            --operation-concurrency=${{ inputs.operation-concurrency }}
+            --timeout=${{ inputs.command-timeout }}
+
+      # Publishes a Build Scan carrying the restore metrics.
+      - run: ./gradlew help
