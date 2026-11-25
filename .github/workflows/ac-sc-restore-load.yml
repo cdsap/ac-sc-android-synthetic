@@ -12,6 +12,7 @@ name: AC/SC restore load
 #   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
 # Optional:
 #   secrets.AC_CLI_ENV                  extra NAME=value lines for the Artifact Cache CLI
+#   secrets.AC_CLI_EXTRA_ARGS           extra CLI arguments, one per line (values are masked in logs)
 
 on:
   workflow_dispatch:
@@ -109,6 +110,7 @@ jobs:
             --operation-concurrency=${{ inputs.operation-concurrency }}
             --operation-timeout=${{ inputs.operation-timeout }}
             --timeout=${{ inputs.command-timeout }}
+            ${{ secrets.AC_CLI_EXTRA_ARGS }}
 
       # Publishes a Build Scan carrying the restore metrics.
       - run: ./gradlew help

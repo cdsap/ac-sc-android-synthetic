@@ -32,6 +32,9 @@ Optional repository secret `AC_CLI_ENV`: extra environment for the Artifact Cach
 Both workflows mask each name and value, then write them to `GITHUB_ENV` before the AC/SC action, so the restore (main
 step) and the store (post step) both see them.
 
+Optional repository secret `AC_CLI_EXTRA_ARGS`: extra Artifact Cache CLI arguments, one per line, appended to every
+`additional-cli-args` block. The action masks argument values of 8 or more characters in the logs.
+
 CLI logs and JFR recordings are not uploaded as artifacts: in a public repository anyone can download them, GitHub does
 not mask their contents, and they contain the Develocity and Edge hosts.
 

@@ -9,6 +9,7 @@ name: Build
 #   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
 # Optional:
 #   secrets.AC_CLI_ENV                  extra NAME=value lines for the Artifact Cache CLI
+#   secrets.AC_CLI_EXTRA_ARGS           extra CLI arguments, one per line (values are masked in logs)
 
 on:
   push:
@@ -78,5 +79,6 @@ jobs:
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
           additional-cli-args: |
             --autodetect=GRADLE
+            ${{ secrets.AC_CLI_EXTRA_ARGS }}
 
       - run: ./gradlew assembleDebug testDebugUnitTest
