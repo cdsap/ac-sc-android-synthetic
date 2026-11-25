@@ -14,10 +14,15 @@ projectGenerator generate-project --type android --language kts --shape rectangl
 
 ## Setup
 
-Repository variable `DEVELOCITY_URL` (e.g. `https://develocity.example.com`) and secret `DEVELOCITY_ACCESS_KEY` in
-`host=key` form (e.g. `develocity.example.com=<key>`).
+Repository secrets:
 
-Until `DEVELOCITY_URL` is set, `build.yml` skips the AC/SC step and builds without caching. `ac-sc-restore-tuning.yml` requires both.
+| secret | value |
+|---|---|
+| `DEVELOCITY_URL` | Develocity server URL, e.g. `https://develocity.example.com` |
+| `DEVELOCITY_ACCESS_KEY` | access key in `host=key` form, e.g. `develocity.example.com=<key>` (the host must match `DEVELOCITY_URL`) |
+
+Until `DEVELOCITY_URL` is set, `build.yml` skips the AC/SC step and builds without caching. `ac-sc-restore-tuning.yml`
+requires both. Pull requests from forks get no secrets, so they also build without caching.
 
 Optional repository variable `AC_CLI_ENV`: extra environment for the Artifact Cache CLI, one `NAME=value` per line.
 Both workflows write it to `GITHUB_ENV` before the AC/SC action, so the restore (main step) and the store (post step)

@@ -5,7 +5,7 @@ name: Build
 # (Artifact Cache + Setup Cache content).
 #
 # Required configuration:
-#   vars.DEVELOCITY_URL                 e.g. https://develocity.example.com
+#   secrets.DEVELOCITY_URL              e.g. https://develocity.example.com
 #   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
 # Optional:
 #   vars.AC_CLI_ENV                     extra NAME=value lines for the Artifact Cache CLI
@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  DEVELOCITY_URL: ${{ vars.DEVELOCITY_URL }}
+  DEVELOCITY_URL: ${{ secrets.DEVELOCITY_URL }}
 
 jobs:
   build:
@@ -50,10 +50,10 @@ jobs:
       # Main step restores, post step stores at the end of the job (only if the job succeeds).
       # The action fails the step without an endpoint, so skip it until DEVELOCITY_URL is configured.
       - name: Develocity Artifact + Setup Cache
-        if: vars.DEVELOCITY_URL != ''
+        if: env.DEVELOCITY_URL != ''
         uses: gradle/develocity-artifact-cache-github-action@v1
         with:
-          develocity-url: ${{ vars.DEVELOCITY_URL }}
+          develocity-url: ${{ secrets.DEVELOCITY_URL }}
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
           additional-cli-args: |
             --reporting-directory=${{ github.workspace }}/ac-logs

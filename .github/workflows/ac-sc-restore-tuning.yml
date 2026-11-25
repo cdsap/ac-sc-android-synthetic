@@ -11,7 +11,7 @@ name: AC/SC restore tuning
 # to each job summary.
 #
 # Required configuration:
-#   vars.DEVELOCITY_URL                 e.g. https://develocity.example.com
+#   secrets.DEVELOCITY_URL              e.g. https://develocity.example.com
 #   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
 # Optional:
 #   vars.AC_CLI_ENV                     extra NAME=value lines for the Artifact Cache CLI
@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 env:
-  DEVELOCITY_URL: ${{ vars.DEVELOCITY_URL }}
+  DEVELOCITY_URL: ${{ secrets.DEVELOCITY_URL }}
   # One fixed image for seed and restores, so every restore reads the same cache key.
   IMAGE_NAME: ac-sc-android-synthetic-tuning-${{ github.run_id }}
 
@@ -59,7 +59,7 @@ jobs:
       - name: Develocity Artifact + Setup Cache (store)
         uses: gradle/develocity-artifact-cache-github-action@v1
         with:
-          develocity-url: ${{ vars.DEVELOCITY_URL }}
+          develocity-url: ${{ secrets.DEVELOCITY_URL }}
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
           image-names: ${{ env.IMAGE_NAME }}
 
@@ -99,7 +99,7 @@ jobs:
       - name: Develocity Artifact + Setup Cache (restore only)
         uses: gradle/develocity-artifact-cache-github-action@v1
         with:
-          develocity-url: ${{ vars.DEVELOCITY_URL }}
+          develocity-url: ${{ secrets.DEVELOCITY_URL }}
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
           image-names: ${{ env.IMAGE_NAME }}
           cache-read-only: true
