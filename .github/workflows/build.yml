@@ -30,7 +30,10 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '21'
+          # 23: the generated convention plugins use a Java 23 toolchain. 21 (last) is the default JDK.
+          java-version: |
+            23
+            21
 
       # Before the AC/SC action, so the CLI resolves the same Gradle User Home.
       - uses: gradle/actions/setup-gradle@v6
