@@ -6,15 +6,15 @@ name: AC/SC restore tuning
 # --operation-timeout (default PT60S).
 #
 # Each restore job runs the same build afterwards, so the Build Scans show how
-# many artifact transforms still executed, and uploads the CLI's logs and JFR
-# recordings (--reporting-directory). The action writes per-phase cache metrics
-# to each job summary.
+# many artifact transforms still executed. The action writes per-phase cache
+# metrics to each job summary. CLI logs and JFRs are not uploaded: artifacts of a
+# public repo are public and unmasked, and they contain the Develocity hosts.
 #
 # Required configuration:
 #   secrets.DEVELOCITY_URL              e.g. https://develocity.example.com
 #   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
 # Optional:
-#   vars.AC_CLI_ENV                     extra NAME=value lines for the Artifact Cache CLI
+#   secrets.AC_CLI_ENV                  extra NAME=value lines for the Artifact Cache CLI
 
 on:
   workflow_dispatch:
@@ -61,14 +61,21 @@ jobs:
           cache-provider: external
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
 
-      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line,
-      # from the repository variable AC_CLI_ENV. Written to GITHUB_ENV so both the
-      # restore (main step) and the store (post step) of the action see it.
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line, from the
+      # repository secret AC_CLI_ENV. Each name and value is masked before it is exported, so it does
+      # not show in the public logs. Exported through GITHUB_ENV so both the restore (main step) and
+      # the store (post step) of the action see it.
       - name: Extra Artifact Cache CLI environment
-        if: vars.AC_CLI_ENV != ''
         env:
-          AC_CLI_ENV: ${{ vars.AC_CLI_ENV }}
-        run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
+          AC_CLI_ENV: ${{ secrets.AC_CLI_ENV }}
+        run: |
+          [ -n "$AC_CLI_ENV" ] || exit 0
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            echo "::add-mask::${line%%=*}"
+            echo "::add-mask::${line#*=}"
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$AC_CLI_ENV"
 
       - name: Develocity Artifact + Setup Cache (store)
         uses: gradle/develocity-artifact-cache-github-action@v1
@@ -117,14 +124,21 @@ jobs:
           cache-provider: external
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
 
-      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line,
-      # from the repository variable AC_CLI_ENV. Written to GITHUB_ENV so both the
-      # restore (main step) and the store (post step) of the action see it.
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line, from the
+      # repository secret AC_CLI_ENV. Each name and value is masked before it is exported, so it does
+      # not show in the public logs. Exported through GITHUB_ENV so both the restore (main step) and
+      # the store (post step) of the action see it.
       - name: Extra Artifact Cache CLI environment
-        if: vars.AC_CLI_ENV != ''
         env:
-          AC_CLI_ENV: ${{ vars.AC_CLI_ENV }}
-        run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
+          AC_CLI_ENV: ${{ secrets.AC_CLI_ENV }}
+        run: |
+          [ -n "$AC_CLI_ENV" ] || exit 0
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            echo "::add-mask::${line%%=*}"
+            echo "::add-mask::${line#*=}"
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$AC_CLI_ENV"
 
       - name: Develocity Artifact + Setup Cache (restore only)
         uses: gradle/develocity-artifact-cache-github-action@v1
@@ -139,15 +153,7 @@ jobs:
             --operation-timeout=${{ matrix.per-entry-timeout }}
             --timeout=${{ inputs.command-timeout }}
             --verbose
-            --reporting-directory=${{ github.workspace }}/ac-logs
 
       # Offline: after a complete restore every dependency is local, so a failure
       # here means the restore missed entries.
       - run: ./gradlew assembleDebug --offline
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: ac-logs-c${{ matrix.concurrency }}-${{ matrix.per-entry-timeout }}
-          path: ac-logs/
-          if-no-files-found: ignore

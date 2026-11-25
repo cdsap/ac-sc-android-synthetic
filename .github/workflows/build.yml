@@ -8,7 +8,7 @@ name: Build
 #   secrets.DEVELOCITY_URL              e.g. https://develocity.example.com
 #   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
 # Optional:
-#   vars.AC_CLI_ENV                     extra NAME=value lines for the Artifact Cache CLI
+#   secrets.AC_CLI_ENV                  extra NAME=value lines for the Artifact Cache CLI
 
 on:
   push:
@@ -52,14 +52,21 @@ jobs:
           cache-provider: external # defer Gradle User Home caching to the AC/SC action
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }} # Build Scans; the AC/SC action does not export its key
 
-      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line,
-      # from the repository variable AC_CLI_ENV. Written to GITHUB_ENV so both the
-      # restore (main step) and the store (post step) of the action see it.
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line, from the
+      # repository secret AC_CLI_ENV. Each name and value is masked before it is exported, so it does
+      # not show in the public logs. Exported through GITHUB_ENV so both the restore (main step) and
+      # the store (post step) of the action see it.
       - name: Extra Artifact Cache CLI environment
-        if: vars.AC_CLI_ENV != ''
         env:
-          AC_CLI_ENV: ${{ vars.AC_CLI_ENV }}
-        run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
+          AC_CLI_ENV: ${{ secrets.AC_CLI_ENV }}
+        run: |
+          [ -n "$AC_CLI_ENV" ] || exit 0
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            echo "::add-mask::${line%%=*}"
+            echo "::add-mask::${line#*=}"
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$AC_CLI_ENV"
 
       # Main step restores, post step stores at the end of the job (only if the job succeeds).
       # The action fails the step without an endpoint, so skip it until DEVELOCITY_URL is configured.
@@ -71,13 +78,5 @@ jobs:
           develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
           additional-cli-args: |
             --autodetect=GRADLE
-            --reporting-directory=${{ github.workspace }}/ac-logs
 
       - run: ./gradlew assembleDebug testDebugUnitTest
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: ac-logs
-          path: ac-logs/
-          if-no-files-found: ignore

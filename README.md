@@ -28,15 +28,18 @@ and GitHub only masks exact secret values.
 Until `DEVELOCITY_URL` is set, `build.yml` skips the AC/SC step and builds without caching. `ac-sc-restore-tuning.yml`
 requires both. Pull requests from forks get no secrets, so they also build without caching.
 
-Optional repository variable `AC_CLI_ENV`: extra environment for the Artifact Cache CLI, one `NAME=value` per line.
-Both workflows write it to `GITHUB_ENV` before the AC/SC action, so the restore (main step) and the store (post step)
-both see it.
+Optional repository secret `AC_CLI_ENV`: extra environment for the Artifact Cache CLI, one `NAME=value` per line.
+Both workflows mask each name and value, then write them to `GITHUB_ENV` before the AC/SC action, so the restore (main
+step) and the store (post step) both see them.
+
+CLI logs and JFR recordings are not uploaded as artifacts: in a public repository anyone can download them, GitHub does
+not mask their contents, and they contain the Develocity and Edge hosts.
 
 ## Workflows
 
 | workflow | trigger | what it does |
 |---|---|---|
-| `build.yml` | push, PR, manual | `assembleDebug testDebugUnitTest`, with the AC/SC action restoring before the build and storing in its post step. Uploads the CLI logs and JFRs (`--reporting-directory`). |
+| `build.yml` | push, PR, manual | `assembleDebug testDebugUnitTest`, with the AC/SC action restoring before the build and storing in its post step. |
 | `ac-sc-restore-tuning.yml` | manual | A seed job stores a fixed cache image from a full build. A 2×2 matrix of fresh runners then restores it read-only with `--operation-concurrency` 4/16 × `--operation-timeout` PT60S/PT5M, and builds `--offline`. Input: `command-timeout` (CLI `--timeout`, default PT2M). |
 
 The CLI runs with `--autodetect=GRADLE`, so it caches the Gradle User Home only, not the runner's Docker images, npm or pip
@@ -50,8 +53,6 @@ Build Scans: the AC/SC action exchanges its key for a short-lived token and does
 
 - **Job summary of each restore job:** the action's per-phase cache metrics (entries, bytes, duration).
 - **Build Scan of the offline build:** how many artifact transforms still executed after the restore.
-- **`ac-logs-*` artifacts:** CLI logs at `--verbose`, plus JFR recordings to look at where slow restores spend their
-  time.
 - **Per-entry timeout:** a single entry that takes longer than `--operation-timeout` (default 60 s) is cancelled by the
   CLI itself. A proxy in front of the Edge logs that as a stream reset at that time.
 
