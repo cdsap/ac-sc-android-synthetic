@@ -14,7 +14,7 @@ plugins {
 rootProject.name = "ac-sc-android-synthetic"
 develocity {
     // Set DEVELOCITY_URL in CI (repository variable); without it no Build Scan is published.
-    val develocityUrl = providers.environmentVariable("DEVELOCITY_URL").orNull
+    val develocityUrl = providers.environmentVariable("DEVELOCITY_URL").orNull?.takeIf { it.isNotBlank() }
     if (develocityUrl != null) {
         server = develocityUrl
     }
