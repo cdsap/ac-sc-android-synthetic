@@ -1,0 +1,66 @@
+name: Build
+
+# Builds the generated Android app (60 modules, Hilt) with the Develocity
+# Artifact Cache GitHub Action restoring and storing the Gradle User Home
+# (Artifact Cache + Setup Cache content).
+#
+# Required configuration:
+#   vars.DEVELOCITY_URL                 e.g. https://develocity.example.com
+#   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
+# Optional:
+#   vars.AC_CLI_ENV                     extra NAME=value lines for the Artifact Cache CLI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DEVELOCITY_URL: ${{ vars.DEVELOCITY_URL }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Before the AC/SC action, so the CLI resolves the same Gradle User Home.
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: external # defer Gradle User Home caching to the AC/SC action
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }} # Build Scans; the AC/SC action does not export its key
+
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line,
+      # from the repository variable AC_CLI_ENV. Written to GITHUB_ENV so both the
+      # restore (main step) and the store (post step) of the action see it.
+      - name: Extra Artifact Cache CLI environment
+        if: vars.AC_CLI_ENV != ''
+        env:
+          AC_CLI_ENV: ${{ vars.AC_CLI_ENV }}
+        run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
+
+      # Main step restores, post step stores at the end of the job (only if the job succeeds).
+      - name: Develocity Artifact + Setup Cache
+        uses: gradle/develocity-artifact-cache-github-action@v1
+        with:
+          develocity-url: ${{ vars.DEVELOCITY_URL }}
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+          additional-cli-args: |
+            --reporting-directory=${{ github.workspace }}/ac-logs
+
+      - run: ./gradlew assembleDebug testDebugUnitTest
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ac-logs
+          path: ac-logs/
+          if-no-files-found: ignore

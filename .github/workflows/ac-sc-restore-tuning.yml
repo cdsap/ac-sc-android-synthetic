@@ -1,0 +1,122 @@
+name: AC/SC restore tuning
+
+# One job seeds a cache image from a full Android build, then fresh runners
+# restore that same image while sweeping the CLI levers that matter for restore
+# time and deadline hits: --operation-concurrency and the per-entry
+# --operation-timeout (default PT60S).
+#
+# Each restore job runs the same build afterwards, so the Build Scans show how
+# many artifact transforms still executed, and uploads the CLI's logs and JFR
+# recordings (--reporting-directory). The action writes per-phase cache metrics
+# to each job summary.
+#
+# Required configuration:
+#   vars.DEVELOCITY_URL                 e.g. https://develocity.example.com
+#   secrets.DEVELOCITY_ACCESS_KEY       host=key form, e.g. develocity.example.com=<key>
+# Optional:
+#   vars.AC_CLI_ENV                     extra NAME=value lines for the Artifact Cache CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      command-timeout:
+        description: "CLI --timeout for restores (the pipeline deadline)"
+        default: "PT2M"
+
+permissions:
+  contents: read
+
+env:
+  DEVELOCITY_URL: ${{ vars.DEVELOCITY_URL }}
+  # One fixed image for seed and restores, so every restore reads the same cache key.
+  IMAGE_NAME: ac-sc-android-synthetic-tuning-${{ github.run_id }}
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: external
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line,
+      # from the repository variable AC_CLI_ENV. Written to GITHUB_ENV so both the
+      # restore (main step) and the store (post step) of the action see it.
+      - name: Extra Artifact Cache CLI environment
+        if: vars.AC_CLI_ENV != ''
+        env:
+          AC_CLI_ENV: ${{ vars.AC_CLI_ENV }}
+        run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
+
+      - name: Develocity Artifact + Setup Cache (store)
+        uses: gradle/develocity-artifact-cache-github-action@v1
+        with:
+          develocity-url: ${{ vars.DEVELOCITY_URL }}
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+          image-names: ${{ env.IMAGE_NAME }}
+
+      - run: ./gradlew assembleDebug
+
+  restore:
+    needs: seed
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        concurrency: [4, 16]
+        per-entry-timeout: [PT60S, PT5M]
+    name: restore (concurrency ${{ matrix.concurrency }}, per-entry ${{ matrix.per-entry-timeout }})
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: external
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+
+      # Optional extra environment for the Artifact Cache CLI, one NAME=value per line,
+      # from the repository variable AC_CLI_ENV. Written to GITHUB_ENV so both the
+      # restore (main step) and the store (post step) of the action see it.
+      - name: Extra Artifact Cache CLI environment
+        if: vars.AC_CLI_ENV != ''
+        env:
+          AC_CLI_ENV: ${{ vars.AC_CLI_ENV }}
+        run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
+
+      - name: Develocity Artifact + Setup Cache (restore only)
+        uses: gradle/develocity-artifact-cache-github-action@v1
+        with:
+          develocity-url: ${{ vars.DEVELOCITY_URL }}
+          develocity-access-key: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+          image-names: ${{ env.IMAGE_NAME }}
+          cache-read-only: true
+          additional-cli-args: |
+            --operation-concurrency=${{ matrix.concurrency }}
+            --operation-timeout=${{ matrix.per-entry-timeout }}
+            --timeout=${{ inputs.command-timeout }}
+            --verbose
+            --reporting-directory=${{ github.workspace }}/ac-logs
+
+      # Offline: after a complete restore every dependency is local, so a failure
+      # here means the restore missed entries.
+      - run: ./gradlew assembleDebug --offline
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ac-logs-c${{ matrix.concurrency }}-${{ matrix.per-entry-timeout }}
+          path: ac-logs/
+          if-no-files-found: ignore
