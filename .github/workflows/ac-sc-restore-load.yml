@@ -25,6 +25,9 @@ on:
       command-timeout:
         description: "CLI --timeout (the pipeline deadline)"
         default: "PT2M"
+      operation-timeout:
+        description: "CLI --operation-timeout (per entry)"
+        default: "PT60S"
       image-name:
         description: "Cache image to restore"
         default: "Build~build~refs/heads/main~Linux~X64"
@@ -104,6 +107,7 @@ jobs:
           additional-cli-args: |
             --autodetect=GRADLE
             --operation-concurrency=${{ inputs.operation-concurrency }}
+            --operation-timeout=${{ inputs.operation-timeout }}
             --timeout=${{ inputs.command-timeout }}
 
       # Publishes a Build Scan carrying the restore metrics.

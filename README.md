@@ -41,7 +41,7 @@ not mask their contents, and they contain the Develocity and Edge hosts.
 |---|---|---|
 | `build.yml` | push, PR, manual | `assembleDebug testDebugUnitTest`, with the AC/SC action restoring before the build and storing in its post step. |
 | `ac-sc-restore-tuning.yml` | manual | A seed job stores a fixed cache image from a full build. A 2×2 matrix of fresh runners then restores it read-only with `--operation-concurrency` 4/16 × `--operation-timeout` PT60S/PT5M, and builds `--offline`. Input: `command-timeout` (CLI `--timeout`, default PT2M). |
-| `ac-sc-restore-load.yml` | manual | N runners (default 12) restore the image `build.yml` stores on main, all at once, read-only, at a fixed `--operation-concurrency` (default 4) and `--timeout` (default PT2M). Each then runs `./gradlew help` so a Build Scan records the restore metrics. |
+| `ac-sc-restore-load.yml` | manual | N runners (default 12) restore the image `build.yml` stores on main, all at once, read-only, at a fixed `--operation-concurrency` (default 4), `--operation-timeout` (default PT60S) and `--timeout` (default PT2M). Each then runs `./gradlew help` so a Build Scan records the restore metrics. |
 
 The CLI runs with `--autodetect=GRADLE`, so it caches the Gradle User Home only, not the runner's Docker images, npm or pip
 caches.
