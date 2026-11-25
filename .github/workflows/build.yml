@@ -48,7 +48,9 @@ jobs:
         run: printf '%s\n' "$AC_CLI_ENV" >> "$GITHUB_ENV"
 
       # Main step restores, post step stores at the end of the job (only if the job succeeds).
+      # The action fails the step without an endpoint, so skip it until DEVELOCITY_URL is configured.
       - name: Develocity Artifact + Setup Cache
+        if: vars.DEVELOCITY_URL != ''
         uses: gradle/develocity-artifact-cache-github-action@v1
         with:
           develocity-url: ${{ vars.DEVELOCITY_URL }}
